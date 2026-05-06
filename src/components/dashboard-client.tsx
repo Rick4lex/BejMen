@@ -1,4 +1,4 @@
-
+npm run dev
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -65,7 +65,7 @@ export function DashboardClient() {
 
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  // const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isShiftFormOpen, setIsShiftFormOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [isManageMessengersOpen, setIsManageMessengersOpen] = useState(false);
@@ -356,10 +356,10 @@ export function DashboardClient() {
                   <TabsTrigger value="schedule" className="dark:text-white data-[state=active]:text-foreground dark:data-[state=active]:text-foreground">Agenda</TabsTrigger>
                   <TabsTrigger value="messenger" className="text-white data-[state=active]:text-foreground dark:data-[state=active]:text-foreground">Vista por Mensajero</TabsTrigger>
                 </TabsList>
-                <Button onClick={() => setIsAiDialogOpen(true)} variant="outline">
+                {/* <Button onClick={() => setIsAiDialogOpen(true)} variant="outline">
                   <Wand2 className="mr-2 h-4 w-4" />
                   Sugerencias IA
-                </Button>
+                </Button> */}
               </div>
           </CardHeader>
           <CardContent>
@@ -557,11 +557,11 @@ export function DashboardClient() {
         </Tabs>
       </Card>
       
-      <AiSuggestionDialog
+      {/* <AiSuggestionDialog
         isOpen={isAiDialogOpen}
         onOpenChange={setIsAiDialogOpen}
         messengers={messengers}
-      />
+      /> */}
 
       {isShiftFormOpen && (
         <ShiftFormDialog

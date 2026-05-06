@@ -2,10 +2,8 @@
 
 import { useState, useRef } from "react";
 import { format } from 'date-fns';
-import { es } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
-import { v4 as uuidv4 } from 'uuid';
 import { Upload, Download, Save, FolderDown, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -189,7 +187,7 @@ export function ExportDialog({
             // Saneamiento de IDs y datos corruptos
             const sanitizeId = (item: any) => {
                 if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
-                    return { ...item, id: uuidv4() };
+                    return { ...item, id: crypto.randomUUID() };
                 }
                 return item;
             };
