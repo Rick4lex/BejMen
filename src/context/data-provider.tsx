@@ -24,9 +24,6 @@ interface DataContextType {
 // Create the context
 export const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Import the data service
-import { dataService } from '@/lib/data-service';
-
 // Create the provider component
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -36,15 +33,28 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   // Load initial data
   useEffect(() => {
-    const { shifts, messengers, clients } = dataService.getAllData();
-    setShifts(shifts);
-    setMessengersState(messengers);
-    setClientsState(clients);
-    setIsLoading(false);
+    if (typeof window !== 'undefined') {
+      const storedShifts = localStorage.getItem('shifts');
+      const storedMessengers = localStorage.getItem('messengers');
+      const storedClients = localStorage.getItem('clients');
+
+      setShifts(storedShifts ? JSON.parse(storedShifts) : []);
+      setMessengersState(storedMessengers ? JSON.parse(storedMessengers) : []);
+      setClientsState(storedClients ? JSON.parse(storedClients) : []);
+      setIsLoading(false);
+    }
   }, []);
-  
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (!isLoading && typeof window !== 'undefined') {
+      localStorage.setItem('shifts', JSON.stringify(shifts));
+      localStorage.setItem('messengers', JSON.stringify(messengers));
+      localStorage.setItem('clients', JSON.stringify(clients));
+    }
+  }, [shifts, messengers, clients, isLoading]);
+
   const importData = useCallback((data: { shifts: Shift[], messengers: Messenger[], clients: Client[] }) => {
-    dataService.saveAllData(data);
     setShifts(data.shifts);
     setMessengersState(data.messengers);
     setClientsState(data.clients);
@@ -52,53 +62,39 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   // CRUD for Shifts
   const addShift = (shift: Shift) => {
-    const newShifts = [...shifts, shift];
-    dataService.saveShifts(newShifts);
-    setShifts(newShifts);
+    setShifts([...shifts, shift]);
   };
   
   const addShiftsBatch = (newShifts: Shift[]) => {
-    const updatedShifts = [...shifts, ...newShifts];
-    dataService.saveShifts(updatedShifts);
-    setShifts(updatedShifts);
+    setShifts([...shifts, ...newShifts]);
   }
 
   const updateShift = (updatedShift: Partial<Shift> & { id: string }) => {
-    const newShifts = shifts.map(s => s.id === updatedShift.id ? { ...s, ...updatedShift } : s);
-    dataService.saveShifts(newShifts);
-    setShifts(newShifts);
+    setShifts(shifts.map(s => s.id === updatedShift.id ? { ...s, ...updatedShift } : s));
   };
 
   const deleteShift = (shiftId: string) => {
-    const newShifts = shifts.filter(s => s.id !== shiftId);
-    dataService.saveShifts(newShifts);
-    setShifts(newShifts);
+    setShifts(shifts.filter(s => s.id !== shiftId));
   };
   
   const deleteShiftsForDay = (day: Date) => {
     const dateToDel = format(day, 'yyyy-MM-dd');
-    const newShifts = shifts.filter(s => s.date !== dateToDel);
-    dataService.saveShifts(newShifts);
-    setShifts(newShifts);
+    setShifts(shifts.filter(s => s.date !== dateToDel));
   };
 
   const deleteShiftsForWeek = (weekStart: Date) => {
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
     const weekStartStr = format(weekStart, 'yyyy-MM-dd');
     const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
-    const newShifts = shifts.filter(s => s.date < weekStartStr || s.date > weekEndStr);
-    dataService.saveShifts(newShifts);
-    setShifts(newShifts);
+    setShifts(shifts.filter(s => s.date < weekStartStr || s.date > weekEndStr));
   };
 
   // Setters for Messengers and Clients
   const setMessengers = (newMessengers: Messenger[]) => {
-    dataService.saveMessengers(newMessengers);
     setMessengersState(newMessengers);
   };
 
   const setClients = (newClients: Client[]) => {
-    dataService.saveClients(newClients);
     setClientsState(newClients);
   };
 

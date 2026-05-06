@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { es } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
+import { v4 as uuidv4 } from 'uuid';
 import { Upload, Download, Save, FolderDown, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/hooks/use-data";
 import type { Shift, Messenger, Client } from "@/lib/types";
-import { saveBackup, loadBackup } from "@/app/actions";
 import { Separator } from "./ui/separator";
 
 
@@ -47,7 +47,6 @@ export function ExportDialog({
   const { importData } = useData();
   const [dateRange, setDateRange] = useState<DateRangeOption>("this_week");
   const [messengerFilter, setMessengerFilter] = useState<string>("all");
-  const [isDriveLoading, setIsDriveLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getFilteredShifts = () => {
@@ -86,7 +85,7 @@ export function ExportDialog({
     return dateFilteredShifts.filter(shift => {
       const messengerMatch = messengerFilter === "all" || shift.messengerId === messengerFilter;
       return messengerMatch;
-    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.time.localeCompare(b.time));
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.startTime.localeCompare(b.startTime));
   };
 
   const handleExportCSV = () => {
@@ -102,7 +101,7 @@ export function ExportDialog({
     const headers = ["Fecha", "Hora", "Cliente", "Mensajero", "Notas"];
     const rows = filteredShifts.map(s => [
         s.date,
-        s.time,
+        `${s.startTime} - ${s.endTime}`,
         `"${getClientName(s.clientId)}"`,
         `"${getMessengerName(s.messengerId)}"`,
         `"${(s.notes || '').replace(/"/g, '""')}"`
@@ -151,7 +150,7 @@ export function ExportDialog({
       head: [["Fecha", "Hora", "Cliente", "Mensajero", "Notas"]],
       body: filteredShifts.map(s => [
         s.date,
-        s.time,
+        `${s.startTime} - ${s.endTime}`,
         getClientName(s.clientId),
         getMessengerName(s.messengerId),
         s.notes || "-"
@@ -185,12 +184,38 @@ export function ExportDialog({
         if (typeof text === 'string') {
           const data = JSON.parse(text);
           // Basic validation
-          if (data.shifts && data.messengers && data.clients) {
-            importData(data);
-            toast({ title: "Importación Exitosa", description: "Los datos se han cargado correctamente." });
+          if (Array.isArray(data.shifts) && Array.isArray(data.messengers) && Array.isArray(data.clients)) {
+            
+            // Saneamiento de IDs y datos corruptos
+            const sanitizeId = (item: any) => {
+                if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+                    return { ...item, id: uuidv4() };
+                }
+                return item;
+            };
+
+            const sanitizedClients = data.clients.map(sanitizeId);
+            const sanitizedMessengers = data.messengers.map(sanitizeId);
+            const sanitizedShifts = data.shifts.map((shift: any) => {
+                const s = sanitizeId(shift);
+                // Asegurar que clientId exista
+                if (!s.clientId) s.clientId = "";
+                // Limpiar messengerId si es null, vacío o inexistente
+                if (!s.messengerId || String(s.messengerId).trim() === '') {
+                  s.messengerId = undefined;
+                }
+                return s;
+            });
+
+            importData({
+              shifts: sanitizedShifts,
+              messengers: sanitizedMessengers,
+              clients: sanitizedClients
+            });
+            toast({ title: "Importación Exitosa", description: "Los datos se han cargado y saneado correctamente." });
             onOpenChange(false);
           } else {
-            throw new Error("Formato de archivo JSON inválido.");
+            throw new Error("Estructura de JSON inválida. Faltan arrays requeridos.");
           }
         }
       } catch (error) {
@@ -199,36 +224,13 @@ export function ExportDialog({
           title: "Error de Importación",
           description: error instanceof Error ? error.message : "No se pudo leer el archivo JSON.",
         });
+      } finally {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
     };
     reader.readAsText(file);
-  }
-  
-  const handleSaveToDrive = async () => {
-    setIsDriveLoading(true);
-    const result = await saveBackup({ shifts, messengers, clients });
-    setIsDriveLoading(false);
-
-    if (result.success) {
-      toast({ title: "Éxito", description: result.message });
-      onOpenChange(false);
-    } else {
-      toast({ variant: "destructive", title: "Error al Guardar", description: result.error });
-    }
-  }
-
-  const handleLoadFromDrive = async () => {
-    setIsDriveLoading(true);
-    const result = await loadBackup();
-    setIsDriveLoading(false);
-
-    if (result.success && result.data) {
-      importData(result.data);
-      toast({ title: "Éxito", description: "Copia de seguridad cargada desde Drive." });
-      onOpenChange(false);
-    } else {
-      toast({ variant: "destructive", title: "Error al Cargar", description: result.error });
-    }
   }
 
 
@@ -285,30 +287,16 @@ export function ExportDialog({
                  <DialogDescription className="py-2">
                     Guarda o restaura todos los datos de la aplicación.
                 </DialogDescription>
-                <div className="py-4 flex flex-col items-center justify-center gap-4">
-                    <h3 className="font-semibold">Copia Local (JSON)</h3>
-                    <div className="flex w-full gap-2">
-                      <Button onClick={handleExportJSON} className="w-full">
-                          <Download className="mr-2"/> Exportar
+                    <h3 className="font-semibold text-lg text-center mb-4">Copia de Seguridad Local (JSON)</h3>
+                    <div className="flex w-full gap-4 max-w-sm">
+                      <Button onClick={handleExportJSON} className="w-full h-12 text-base">
+                          <Download className="mr-2"/> Descargar
                       </Button>
-                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
-                          <Upload className="mr-2"/> Importar
+                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full h-12 text-base">
+                          <Upload className="mr-2"/> Restaurar
                       </Button>
                       <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportJSON} />
                     </div>
-                    <Separator className="my-2"/>
-                    <h3 className="font-semibold">Copia en Google Drive</h3>
-                     <div className="flex w-full gap-2">
-                        <Button onClick={handleSaveToDrive} className="w-full" disabled={isDriveLoading}>
-                            {isDriveLoading ? <Loader2 className="mr-2 animate-spin"/> : <Save className="mr-2" />}
-                            Guardar en Drive
-                        </Button>
-                        <Button variant="outline" onClick={handleLoadFromDrive} className="w-full" disabled={isDriveLoading}>
-                            {isDriveLoading ? <Loader2 className="mr-2 animate-spin"/> : <FolderDown className="mr-2" />}
-                            Cargar desde Drive
-                        </Button>
-                    </div>
-                </div>
             </TabsContent>
         </Tabs>
       </DialogContent>

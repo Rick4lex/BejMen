@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,9 +43,10 @@ const STATUS_OPTIONS: { value: MessengerStatus; label: string }[] = [
 interface ManageMessengersDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  defaultMessengerId?: string | null;
 }
 
-export function ManageMessengersDialog({ isOpen, onOpenChange }: ManageMessengersDialogProps) {
+export function ManageMessengersDialog({ isOpen, onOpenChange, defaultMessengerId }: ManageMessengersDialogProps) {
   const { messengers, setMessengers } = useData();
   const { toast } = useToast();
   const [editingMessenger, setEditingMessenger] = useState<Messenger | null>(null);
@@ -89,6 +90,15 @@ export function ManageMessengersDialog({ isOpen, onOpenChange }: ManageMessenger
     setShiftPreference(messenger.shiftPreference);
     setIsFormOpen(true);
   };
+
+  useEffect(() => {
+    if (isOpen && defaultMessengerId) {
+        const messengerToEdit = messengers.find(m => m.id === defaultMessengerId);
+        if (messengerToEdit) {
+            handleEdit(messengerToEdit);
+        }
+    }
+  }, [isOpen, defaultMessengerId, messengers]);
 
   const handleDelete = (messengerId: string) => {
     setMessengers(messengers.filter((m) => m.id !== messengerId));

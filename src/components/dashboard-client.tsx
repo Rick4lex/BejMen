@@ -75,6 +75,8 @@ export function DashboardClient() {
   const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
   const [isDeleteDayDialogOpen, setIsDeleteDayDialogOpen] = useState(false);
   const [isDeleteWeekDialogOpen, setIsDeleteWeekDialogOpen] = useState(false);
+  const [prefilledMessengerId, setPrefilledMessengerId] = useState<string | null>(null);
+  const [messengerToEditId, setMessengerToEditId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const { generateToken } = useAuth();
@@ -111,9 +113,8 @@ export function DashboardClient() {
     const unassignedCount = shiftsForDay.filter(s => !s.messengerId).length;
     const totalHours = shiftsForDay.reduce((acc, shift) => {
       try {
-        const [start, end] = shift.time.split(' - ');
-        const [startH, startM] = start.split(':').map(Number);
-        const [endH, endM] = end.split(':').map(Number);
+        const [startH, startM] = shift.startTime.split(':').map(Number);
+        const [endH, endM] = shift.endTime.split(':').map(Number);
         const diff = (endH * 60 + endM) - (startH * 60 + startM);
         return acc + diff / 60;
       } catch {
@@ -170,9 +171,17 @@ export function DashboardClient() {
     });
   };
 
-  const handleAddNewShift = () => {
+  const handleAddNewShift = (messengerId?: string, date?: Date) => {
     setEditingShift(null);
+    if (messengerId) setPrefilledMessengerId(messengerId);
+    else setPrefilledMessengerId(null);
+    if (date) setSelectedDate(date);
     setIsShiftFormOpen(true);
+  }
+
+  const handleOpenMessengerEdit = (messengerId: string) => {
+    setMessengerToEditId(messengerId);
+    setIsManageMessengersOpen(true);
   }
 
   const handleEditShift = (shift: Shift) => {
@@ -277,7 +286,7 @@ export function DashboardClient() {
         break;
       case 'time':
       default:
-        dayShifts.sort((a,b) => a.time.localeCompare(b.time));
+        dayShifts.sort((a,b) => a.startTime.localeCompare(b.startTime));
         break;
     }
 
@@ -539,6 +548,9 @@ export function DashboardClient() {
                 clients={clients}
                 shifts={shifts}
                 month={daysInMonth}
+                onEditShift={handleEditShift}
+                onAddShift={handleAddNewShift}
+                onOpenMessengerEdit={handleOpenMessengerEdit}
               />
             </TabsContent>
           </CardContent>
@@ -560,6 +572,7 @@ export function DashboardClient() {
             clients={clients}
             shift={editingShift}
             selectedDate={selectedDate}
+            prefilledMessengerId={prefilledMessengerId}
         />
       )}
 
@@ -586,7 +599,11 @@ export function DashboardClient() {
       {isManageMessengersOpen && (
         <ManageMessengersDialog
           isOpen={isManageMessengersOpen}
-          onOpenChange={setIsManageMessengersOpen}
+          onOpenChange={(open) => {
+              setIsManageMessengersOpen(open);
+              if (!open) setMessengerToEditId(null);
+          }}
+          defaultMessengerId={messengerToEditId}
         />
       )}
 

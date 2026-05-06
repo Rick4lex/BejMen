@@ -18,7 +18,8 @@ export type Client = {
 export type Shift = {
   id: string;
   date: string; // YYYY-MM-DD
-  time: string; // e.g., "08:00 - 16:00"
+  startTime: string; // e.g., "08:00"
+  endTime: string; // e.g., "16:00"
   clientId: string;
   messengerId?: string;
   notes: string;

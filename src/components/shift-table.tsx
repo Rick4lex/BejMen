@@ -99,7 +99,7 @@ export function ShiftTable({
       const shiftDay = getDay(shiftDate);
       if (!messenger.availableWeekdays.includes(shiftDay)) return false;
 
-      const shiftType = getShiftType(shift.time);
+      const shiftType = getShiftType(shift.startTime);
       if (messenger.shiftPreference !== 'any' && messenger.shiftPreference !== shiftType) return false;
 
       return true;
@@ -132,7 +132,7 @@ export function ShiftTable({
                 {groupShifts.map((shift) => {
                   const messenger = getMessenger(shift.messengerId);
                   const isUnassigned = !shift.messengerId;
-                  const shiftType = getShiftType(shift.time);
+                  const shiftType = getShiftType(shift.startTime);
                   
                   return (
                     <TableRow key={shift.id} className="h-24">
@@ -143,7 +143,7 @@ export function ShiftTable({
                             ) : (
                                 <Moon className="h-5 w-5 text-blue-300" />
                             )}
-                            <span>{shift.time}</span>
+                            <span>{shift.startTime} - {shift.endTime}</span>
                         </div>
                       </TableCell>
                       <TableCell className="border-r align-middle">{getClientName(shift.clientId)}</TableCell>

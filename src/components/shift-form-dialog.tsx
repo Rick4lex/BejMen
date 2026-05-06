@@ -37,7 +37,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Shift, Messenger, Client } from "@/lib/types";
 
 const formSchema = z.object({
-  time: z.string().regex(/^\d{2}:\d{2}\s-\s\d{2}:\d{2}$/, "La hora debe estar en formato HH:mm - HH:mm."),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, "La hora de ingreso debe estar en formato HH:mm."),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "La hora de salida debe estar en formato HH:mm."),
   clientId: z.string().min(1, "El cliente es obligatorio."),
   messengerId: z.string().optional(),
   notes: z.string().max(1000, "Las notas deben tener 1000 caracteres o menos.").optional(),
@@ -51,6 +52,7 @@ type ShiftFormDialogProps = {
   clients: Client[];
   shift: Shift | null;
   selectedDate: Date;
+  prefilledMessengerId?: string | null;
 };
 
 export function ShiftFormDialog({
@@ -61,11 +63,13 @@ export function ShiftFormDialog({
   clients,
   shift,
   selectedDate,
+  prefilledMessengerId,
 }: ShiftFormDialogProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      time: "09:00 - 17:00",
+      startTime: "09:00",
+      endTime: "17:00",
       clientId: "",
       messengerId: "",
       notes: "",
@@ -75,16 +79,18 @@ export function ShiftFormDialog({
   useEffect(() => {
     if (shift) {
       form.reset({
-        time: shift.time,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
         clientId: shift.clientId,
         messengerId: shift.messengerId || "",
         notes: shift.notes || "",
       });
     } else {
        form.reset({
-        time: "09:00 - 17:00",
+        startTime: "09:00",
+        endTime: "17:00",
         clientId: "",
-        messengerId: "",
+        messengerId: prefilledMessengerId || "",
         notes: "",
       });
     }
@@ -110,19 +116,34 @@ export function ShiftFormDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hora</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: 09:00 - 17:00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hora de Ingreso</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="endTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hora de Salida</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="clientId"
