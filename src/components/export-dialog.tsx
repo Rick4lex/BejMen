@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { format } from 'date-fns';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
 import { Upload, Download, Save, FolderDown, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -175,52 +176,107 @@ export function ExportDialog({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const text = e.target?.result;
         if (typeof text === 'string') {
-          const data = JSON.parse(text);
-          // Basic validation
-          if (Array.isArray(data.shifts) && Array.isArray(data.messengers) && Array.isArray(data.clients)) {
+          let data: any = { shifts: [], messengers: [], clients: [] };
+
+          if (isCSV) {
+            const results = Papa.parse<any>(text, { header: true, skipEmptyLines: true });
+            if (results.errors.length > 0) {
+              console.error("PapaParse errors:", results.errors);
+              toast({
+                variant: "destructive",
+                title: "Advertencia en formato CSV",
+                description: "Se encontraron problemas al leer el archivo. Algunas filas podrían tener un formato inválido.",
+              });
+            }
             
-            // Saneamiento de IDs y datos corruptos
-            const sanitizeId = (item: any) => {
-                if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
-                    return { ...item, id: crypto.randomUUID() };
-                }
-                return item;
-            };
-
-            const sanitizedClients = data.clients.map(sanitizeId);
-            const sanitizedMessengers = data.messengers.map(sanitizeId);
-            const sanitizedShifts = data.shifts.map((shift: any) => {
-                const s = sanitizeId(shift);
-                // Asegurar que clientId exista
-                if (!s.clientId) s.clientId = "";
-                // Limpiar messengerId si es null, vacío o inexistente
-                if (!s.messengerId || String(s.messengerId).trim() === '') {
-                  s.messengerId = undefined;
-                }
-                return s;
-            });
-
-            importData({
-              shifts: sanitizedShifts,
-              messengers: sanitizedMessengers,
-              clients: sanitizedClients
-            });
-            toast({ title: "Importación Exitosa", description: "Los datos se han cargado y saneado correctamente." });
-            onOpenChange(false);
+            // Determinar tipo de CSV basado en cabeceras
+            const firstRow = results.data[0] || {};
+            if ('date' in firstRow || 'startTime' in firstRow || 'clientId' in firstRow) {
+                data.shifts = results.data;
+            } else if ('status' in firstRow || 'avatarUrl' in firstRow || 'availableWeekdays' in firstRow || 'shiftPreference' in firstRow) {
+                data.messengers = results.data;
+            } else {
+                data.clients = results.data;
+            }
           } else {
-            throw new Error("Estructura de JSON inválida. Faltan arrays requeridos.");
+            // Asumimos que es JSON
+            data = JSON.parse(text);
           }
+
+          if (!Array.isArray(data.shifts)) data.shifts = [];
+          if (!Array.isArray(data.messengers)) data.messengers = [];
+          if (!Array.isArray(data.clients)) data.clients = [];
+
+          // Saneamiento estricto de IDs y datos vacíos
+          const sanitizeId = (item: any) => {
+              if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+                  return { ...item, id: crypto.randomUUID() };
+              }
+              return item;
+          };
+          
+          const sanitizeString = (val: any) => (val === null || val === undefined) ? "" : String(val).trim();
+
+          const sanitizedClients = data.clients.map((c: any) => {
+              const client = sanitizeId(c);
+              client.name = sanitizeString(client.name);
+              return client;
+          });
+
+          const sanitizedMessengers = data.messengers.map((m: any) => {
+              const msgr = sanitizeId(m);
+              msgr.name = sanitizeString(msgr.name);
+              msgr.avatarUrl = sanitizeString(msgr.avatarUrl);
+              msgr.status = sanitizeString(msgr.status) || 'active';
+              msgr.shiftPreference = sanitizeString(msgr.shiftPreference) || 'any';
+              
+              if (typeof msgr.availableWeekdays === 'string') {
+                  try {
+                      msgr.availableWeekdays = JSON.parse(msgr.availableWeekdays);
+                  } catch {
+                      msgr.availableWeekdays = [];
+                  }
+              }
+              if (!Array.isArray(msgr.availableWeekdays)) msgr.availableWeekdays = [];
+              return msgr;
+          });
+
+          const sanitizedShifts = data.shifts.map((shift: any) => {
+              const s = sanitizeId(shift);
+              s.clientId = sanitizeString(s.clientId);
+              s.date = sanitizeString(s.date);
+              s.startTime = sanitizeString(s.startTime);
+              s.endTime = sanitizeString(s.endTime);
+              s.notes = sanitizeString(s.notes);
+              
+              if (!s.messengerId || String(s.messengerId).trim() === '') {
+                s.messengerId = undefined;
+              } else {
+                s.messengerId = sanitizeString(s.messengerId);
+              }
+              return s;
+          });
+
+          importData({
+            shifts: sanitizedShifts,
+            messengers: sanitizedMessengers,
+            clients: sanitizedClients
+          });
+          toast({ title: "Importación Exitosa", description: "Los datos se han cargado y saneado correctamente." });
+          onOpenChange(false);
         }
       } catch (error) {
         toast({
           variant: "destructive",
           title: "Error de Importación",
-          description: error instanceof Error ? error.message : "No se pudo leer el archivo JSON.",
+          description: error instanceof Error ? error.message : "No se pudo procesar el archivo.",
         });
       } finally {
         if (fileInputRef.current) {
@@ -293,7 +349,7 @@ export function ExportDialog({
                       <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full h-12 text-base">
                           <Upload className="mr-2"/> Restaurar
                       </Button>
-                      <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportJSON} />
+                      <input type="file" ref={fileInputRef} className="hidden" accept=".json,.csv" onChange={handleImportJSON} />
                     </div>
             </TabsContent>
         </Tabs>
