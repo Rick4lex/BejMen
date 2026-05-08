@@ -44,8 +44,8 @@ El dashboard interactivo (`DashboardClient`) concentra gran parte de las operaci
 - **Autenticación Básica / Token:** Incluye un sistema de "Token de Acceso de Administrador" para poder sincronizar dispositivos o brindar acceso restringido al panel.
 - **Personalización Visual:** Soporte para cambiar entre modo oscuro y claro.
 
-## 5. Integración con Inteligencia Artificial (Genkit)
-La plataforma se destaca por incluir flujos avanzados de IA que resuelven problemas operativos:
+## 5. Integración pendiente para Inteligencia Artificial (Genkit)
+La plataforma integrara flujos avanzados de IA que resuelven problemas operativos:
 
 1. **Asignación Inteligente de Turnos (`suggest-shift-assignments.ts`):** 
    - Un flujo que toma como parámetros la disponibilidad de los mensajeros, los requisitos del turno y restricciones de horario, y devuelve sugerencias estructuradas sobre qué mensajero debería cubrir qué turno, optimizando el calendario y minimizando conflictos. Incluye justificaciones textuales elaboradas por la IA para explicar las decisiones.
@@ -55,7 +55,7 @@ La plataforma se destaca por incluir flujos avanzados de IA que resuelven proble
 ## 6. Estructura del Proyecto
 
 - `src/app/`: Contiene las rutas principales de Next.js (layout global y página principal del panel).
-- `src/components/`: Conjunto robusto de componentes de interfaz. Destacan los diálogos interactivos de acción y los componentes que arman la tabla de turnos. Incluye la carpeta `/ui` con primitivas de shadcn.
+- `src/components/`: Conjunto robustgit o de componentes de interfaz. Destacan los diálogos interactivos de acción y los componentes que arman la tabla de turnos. Incluye la carpeta `/ui` con primitivas de shadcn.
 - `src/ai/`: Lógica de inteligencia artificial y Genkit. Contiene la configuración (`genkit.ts`) y las carpetas de flujos (`flows/`).
 - `src/hooks/`: Hooks personalizados de React, que manejan el estado global de los datos, el enrutamiento y las notificaciones.
 - `src/lib/`: Utilidades generales y definición formal de tipos.
