@@ -25,8 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { getAiSuggestions } from "@/app/actions";
-import type { SuggestShiftAssignmentsOutput } from "@/ai/flows/suggest-shift-assignments";
+import { getAiSuggestions, type SuggestShiftAssignmentsOutput } from "@/app/actions";
 import { ScrollArea } from "./ui/scroll-area";
 import type { Messenger } from "@/lib/types";
 
