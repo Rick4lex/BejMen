@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useData } from "@/hooks/use-data";
@@ -46,7 +47,7 @@ export function ExportDialog({
   const { importData } = useData();
   const [dateRange, setDateRange] = useState<DateRangeOption>("this_week");
   const [messengerFilter, setMessengerFilter] = useState<string>("all");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importText, setImportText] = useState("");
 
   const getFilteredShifts = () => {
     const today = new Date();
@@ -172,120 +173,128 @@ export function ExportDialog({
     onOpenChange(false);
   }
 
-  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleMassiveImport = () => {
+    if (!importText.trim()) return;
 
-    const isCSV = file.name.toLowerCase().endsWith('.csv');
+    try {
+      let data: any = { shifts: [], messengers: [], clients: [] };
+      let isJSON = false;
+      let parsedObjects: any[] = [];
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
       try {
-        const text = e.target?.result;
-        if (typeof text === 'string') {
-          let data: any = { shifts: [], messengers: [], clients: [] };
-
-          if (isCSV) {
-            const results = Papa.parse<any>(text, { header: true, skipEmptyLines: true });
-            if (results.errors.length > 0) {
-              console.error("PapaParse errors:", results.errors);
-              toast({
-                variant: "destructive",
-                title: "Advertencia en formato CSV",
-                description: "Se encontraron problemas al leer el archivo. Algunas filas podrían tener un formato inválido.",
-              });
-            }
-            
-            // Determinar tipo de CSV basado en cabeceras
-            const firstRow = results.data[0] || {};
-            if ('date' in firstRow || 'startTime' in firstRow || 'clientId' in firstRow) {
-                data.shifts = results.data;
-            } else if ('status' in firstRow || 'avatarUrl' in firstRow || 'availableWeekdays' in firstRow || 'shiftPreference' in firstRow) {
-                data.messengers = results.data;
-            } else {
-                data.clients = results.data;
-            }
-          } else {
-            // Asumimos que es JSON
-            data = JSON.parse(text);
-          }
-
-          if (!Array.isArray(data.shifts)) data.shifts = [];
-          if (!Array.isArray(data.messengers)) data.messengers = [];
-          if (!Array.isArray(data.clients)) data.clients = [];
-
-          // Saneamiento estricto de IDs y datos vacíos
-          const sanitizeId = (item: any) => {
-              if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
-                  return { ...item, id: crypto.randomUUID() };
-              }
-              return item;
-          };
-          
-          const sanitizeString = (val: any) => (val === null || val === undefined) ? "" : String(val).trim();
-
-          const sanitizedClients = data.clients.map((c: any) => {
-              const client = sanitizeId(c);
-              client.name = sanitizeString(client.name);
-              return client;
-          });
-
-          const sanitizedMessengers = data.messengers.map((m: any) => {
-              const msgr = sanitizeId(m);
-              msgr.name = sanitizeString(msgr.name);
-              msgr.avatarUrl = sanitizeString(msgr.avatarUrl);
-              msgr.status = sanitizeString(msgr.status) || 'active';
-              msgr.shiftPreference = sanitizeString(msgr.shiftPreference) || 'any';
-              
-              if (typeof msgr.availableWeekdays === 'string') {
-                  try {
-                      msgr.availableWeekdays = JSON.parse(msgr.availableWeekdays);
-                  } catch {
-                      msgr.availableWeekdays = [];
-                  }
-              }
-              if (!Array.isArray(msgr.availableWeekdays)) msgr.availableWeekdays = [];
-              return msgr;
-          });
-
-          const sanitizedShifts = data.shifts.map((shift: any) => {
-              const s = sanitizeId(shift);
-              s.clientId = sanitizeString(s.clientId);
-              s.date = sanitizeString(s.date);
-              s.startTime = sanitizeString(s.startTime);
-              s.endTime = sanitizeString(s.endTime);
-              s.notes = sanitizeString(s.notes);
-              
-              if (!s.messengerId || String(s.messengerId).trim() === '') {
-                s.messengerId = undefined;
-              } else {
-                s.messengerId = sanitizeString(s.messengerId);
-              }
-              return s;
-          });
-
-          importData({
-            shifts: sanitizedShifts,
-            messengers: sanitizedMessengers,
-            clients: sanitizedClients
-          });
-          toast({ title: "Importación Exitosa", description: "Los datos se han cargado y saneado correctamente." });
-          onOpenChange(false);
+        const parsedJSON = JSON.parse(importText);
+        if (parsedJSON.shifts || parsedJSON.messengers || parsedJSON.clients) {
+            data = parsedJSON;
+            isJSON = true;
+        } else if (Array.isArray(parsedJSON)) {
+            parsedObjects = parsedJSON;
+            isJSON = true;
         }
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Error de Importación",
-          description: error instanceof Error ? error.message : "No se pudo procesar el archivo.",
-        });
-      } finally {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+      } catch (e) {
+        // Not JSON, fall back to PapaParse
+      }
+
+      if (!isJSON) {
+        const results = Papa.parse<any>(importText, { header: true, skipEmptyLines: true });
+        if (results.errors.length > 0) {
+          console.error("PapaParse errors:", results.errors);
+          toast({
+            variant: "destructive",
+            title: "Advertencia en formato CSV",
+            description: "Se encontraron problemas al leer el texto. Algunas filas podrían tener un formato inválido.",
+          });
+        }
+        parsedObjects = results.data;
+      }
+
+      // Determinar tipo si recibimos un array plano
+      if (parsedObjects.length > 0) {
+        const firstRow = parsedObjects[0] || {};
+        if ('date' in firstRow || 'startTime' in firstRow || 'clientId' in firstRow) {
+            data.shifts = parsedObjects;
+        } else if ('status' in firstRow || 'avatarUrl' in firstRow || 'availableWeekdays' in firstRow || 'shiftPreference' in firstRow || 'workingDays' in firstRow) {
+            data.messengers = parsedObjects;
+        } else {
+            data.clients = parsedObjects;
         }
       }
-    };
-    reader.readAsText(file);
-  }
+
+      if (!Array.isArray(data.shifts)) data.shifts = [];
+      if (!Array.isArray(data.messengers)) data.messengers = [];
+      if (!Array.isArray(data.clients)) data.clients = [];
+
+      // Saneamiento estricto de IDs y datos vacíos
+      const sanitizeId = (item: any) => {
+          if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+              return { ...item, id: crypto.randomUUID() };
+          }
+          return item;
+      };
+      
+      const sanitizeString = (val: any) => (val === null || val === undefined) ? "" : String(val).trim();
+
+      const sanitizedClients = data.clients.map((c: any) => {
+          const client = sanitizeId(c);
+          client.name = sanitizeString(client.name);
+          return client;
+      });
+
+      const sanitizedMessengers = data.messengers.map((m: any) => {
+          const msgr = sanitizeId(m);
+          msgr.name = sanitizeString(msgr.name);
+          msgr.avatarUrl = sanitizeString(msgr.avatarUrl);
+          msgr.status = sanitizeString(msgr.status) || 'active';
+          msgr.shiftPreference = sanitizeString(msgr.shiftPreference) || 'any';
+          
+          if (typeof msgr.availableWeekdays === 'string') {
+              try {
+                  msgr.availableWeekdays = JSON.parse(msgr.availableWeekdays);
+              } catch {
+                  msgr.availableWeekdays = [];
+              }
+          }
+          if (!Array.isArray(msgr.availableWeekdays)) msgr.availableWeekdays = [];
+          return msgr;
+      });
+
+      const sanitizedShifts = data.shifts.map((shift: any) => {
+          const s = sanitizeId(shift);
+          s.clientId = sanitizeString(s.clientId);
+          s.date = sanitizeString(s.date);
+          s.startTime = sanitizeString(s.startTime);
+          s.endTime = sanitizeString(s.endTime);
+          s.notes = sanitizeString(s.notes);
+          
+          if (!s.messengerId || String(s.messengerId).trim() === '') {
+            s.messengerId = undefined;
+          } else {
+            s.messengerId = sanitizeString(s.messengerId);
+          }
+          return s;
+      });
+
+      importData({
+        shifts: sanitizedShifts,
+        messengers: sanitizedMessengers,
+        clients: sanitizedClients
+      });
+      
+      const totalImported = sanitizedShifts.length + sanitizedMessengers.length + sanitizedClients.length;
+      toast({ 
+        title: "Procesamiento Exitoso", 
+        description: `Se han importado ${totalImported} registros correctamente (${sanitizedClients.length} clientes, ${sanitizedMessengers.length} mensajeros, ${sanitizedShifts.length} turnos).` 
+      });
+      setImportText("");
+      onOpenChange(false);
+      
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error de Importación",
+        description: error instanceof Error ? error.message : "No se pudo procesar el texto.",
+      });
+    }
+  };
 
 
   return (
@@ -339,18 +348,25 @@ export function ExportDialog({
             </TabsContent>
             <TabsContent value="backup">
                  <DialogDescription className="py-2">
-                    Guarda o restaura todos los datos de la aplicación.
+                    Guarda o restaura todos los datos de la aplicación. Pega código JSON o CSV masivo para importar.
                 </DialogDescription>
-                    <h3 className="font-semibold text-lg text-center mb-4">Copia de Seguridad Local (JSON)</h3>
-                    <div className="flex w-full gap-4 max-w-sm">
-                      <Button onClick={handleExportJSON} className="w-full h-12 text-base">
-                          <Download className="mr-2"/> Descargar
-                      </Button>
-                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full h-12 text-base">
-                          <Upload className="mr-2"/> Restaurar
-                      </Button>
-                      <input type="file" ref={fileInputRef} className="hidden" accept=".json,.csv" onChange={handleImportJSON} />
-                    </div>
+                <div className="flex flex-col gap-4 py-4">
+                  <Textarea
+                      placeholder="Pega aquí el código JSON o las líneas de tu CSV..."
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      rows={6}
+                      className="font-mono text-sm"
+                  />
+                  <div className="flex gap-4">
+                    <Button onClick={handleExportJSON} variant="outline" className="w-full">
+                        <Download className="mr-2 h-4 w-4"/> Descargar Copia
+                    </Button>
+                    <Button onClick={handleMassiveImport} className="w-full">
+                        <Upload className="mr-2 h-4 w-4"/> Procesar Información
+                    </Button>
+                  </div>
+                </div>
             </TabsContent>
         </Tabs>
       </DialogContent>
